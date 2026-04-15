@@ -1,0 +1,208 @@
+/* ==========================================
+    1. БАЗОВЫЕ СТИЛИ (ТЕМА)
+    ========================================== */
+:root {
+    --bg-color: #f4f6f9; --surface-color: #ffffff;
+    --modal-bg:#2a2a2e; --modal-border:#000000; 
+    --text-main: #333333; --text-muted: #777777;
+    --primary: #0d6efd; --primary-hover: #0b5ed7;
+    --border: #dee2e6; --danger: #dc3545; --success: #198754;
+    --sidebar-width: 280px;
+}
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; display: flex; height: 100vh; }
+
+/* Глобальные утилиты */
+.hidden { display: none !important; }
+.flex { display: flex; }
+.input-group { margin-bottom: 15px; text-align: left; }
+.input-group label { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 500; color: var(--text-muted); }
+.input-group input, .input-group select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; font-size: 14px; background-color: #fff; }
+button.primary { background-color: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; width: 100%; font-size: 16px; font-weight: 500; transition: 0.2s; }
+button.primary:hover { background-color: var(--primary-hover); }
+button:disabled { background-color: var(--text-muted) !important; cursor: not-allowed; }
+
+/* ==========================================
+    2. ЭКРАН ЛОГИНА
+    ========================================== */
+#login-screen { justify-content: center; align-items: center; width: 100%; }
+.login-box { background: var(--surface-color); padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); width: 100%; max-width: 350px; text-align: center; }
+.login-box h2 { margin-top: 0; }
+
+/* ==========================================
+    3. ГЛАВНЫЙ ИНТЕРФЕЙС
+    ========================================== */
+#app-screen { width: 100%; }
+
+/* Сайдбар */
+.sidebar { width: var(--sidebar-width); background: var(--surface-color); border-right: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; }
+.sidebar-header { padding: 20px; border-bottom: 1px solid var(--border); font-weight: bold; }
+.library-list { overflow-y: auto; flex-grow: 1; padding: 10px; }
+/* --- КРАСИВОЕ ЛЕВОЕ МЕНЮ --- */
+.library-item { 
+    padding: 12px 15px; 
+    margin-bottom: 8px; 
+    border-radius: 8px; 
+    cursor: pointer; 
+    transition: all 0.2s ease; 
+    font-size: 14px; 
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    color: var(--text-main);
+}
+.library-item:hover { background: #e2e8f0; transform: translateX(5px); }
+.library-item.active { background: var(--primary); color: white; box-shadow: 0 4px 12px rgba(13,110,253,0.3); }
+.library-item .lib-icon { margin-right: 12px; font-size: 18px; opacity: 0.7; transition: 0.2s; }
+.library-item.active .lib-icon { opacity: 1; transform: scale(1.1); }
+.sidebar-footer { padding: 10px; border-top: 1px solid var(--border); }
+.logout-btn { background-color: transparent; border: none; color: var(--text-main); border-radius: 6px; display: flex; align-items: center; gap: 10px; font-size: 15px; padding: 10px 15px; cursor: pointer; width: 100%;}
+.logout-btn:hover { background-color: #fee2e2; color: var(--danger); }
+
+/* Красивые заголовки групп библиотек */
+.library-group-header {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin: 20px 0 8px 12px;
+    letter-spacing: 0.5px;
+}
+/* Убираем отступ у самого первого заголовка, чтобы было ровно */
+.library-group-header:first-child { margin-top: 5px; }
+
+/* Контентная часть */
+.main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+.header { padding: 20px; background: var(--surface-color); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.file-browser { padding: 20px; overflow-y: auto; flex-grow: 1; }
+
+/* Профиль */
+.user-profile { display: flex; align-items: center; gap: 10px; }
+.user-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; font-size: 16px; }
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.user-name { font-size: 14px; font-weight: 500; }
+
+/* Файлы */
+.item-row { display: flex; align-items: center; padding: 12px; background: var(--surface-color); border: 1px solid var(--border); margin-bottom: 8px; border-radius: 8px; cursor: pointer; transition: border-color 0.2s; }
+.item-row:hover { border-color: var(--primary); }
+.item-icon { font-size: 24px; margin-right: 15px; }
+.item-details { flex-grow: 1; overflow: hidden; }
+.item-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-meta { font-size: 12px; color: var(--text-muted); }
+.print-btn { background: white; border: 1px solid var(--border); padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.print-btn:hover { background: var(--bg-color); border-color: var(--primary); }
+
+/* ==========================================
+    4. МОДАЛЬНОЕ ОКНО ПЕЧАТИ
+    ========================================== */
+.modal-overlay { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 1000; }
+.modal { background: var(--bg-color); border-radius: 12px; width: 95%; height: 95%; display: flex; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+
+/* Предпросмотр */
+.modal-preview { flex: 1; background: var(--modal-bg); display: flex; justify-content: center; align-items: center; position: relative; }
+#preview-iframe { width: 100%; height: 100%; border: none; background: white; }
+.preview-loading { color: white; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.preview-loading .spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top-color: var(--modal-border); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Панель настроек */
+.modal-sidebar { width: 340px; background: var(--modal-bg); display: flex; flex-direction: column; border-left: 1px solid var(--modal-border); }
+/* 1. Хедер: делает красивые отступы и расставляет заголовок и кнопку по краям */
+.modal-header { 
+    /* Пышные отступы: Сверху 25px, Справа/Слева 20px, Снизу 10px */
+    padding: 25px 20px 10px 20px; 
+    border-bottom: none; 
+    display: flex; 
+    justify-content: space-between; /* Название влево, кнопка вправо */
+    align-items: center; /* Идеальное выравнивание по центру вертикали */
+}
+
+/* 2. Заголовок: Крупный, без лишних отступов */
+.modal-header h3 { 
+    color: white; 
+    margin: 0; /* Убрали margin-top, чтобы не мешал выравниванию */
+    font-size: 24px; 
+    font-weight: 600;
+}
+
+/* 3. Кнопка закрытия: Жестко зафиксирована в углу благодаря Flexbox в хедере */
+.modal-close { 
+    cursor: pointer; 
+    font-size: 18px; 
+    color: var(--text-muted); 
+    background: transparent; 
+    border: none; 
+    width: 32px; 
+    height: 32px; 
+    border-radius: 6px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    transition: 0.2s;
+    margin: 0; /* Обнулили отступы */
+}
+.modal-close:hover { background-color: #fee2e2; color: var(--danger); }
+
+/* 4. Тело модального окна: Наводим порядок с отступами */
+.modal-body { 
+    padding: 15px 20px 20px 20px; /* Снизу сделали отступ больше */
+    overflow-y: auto; 
+    flex-grow: 1; 
+}
+#modal-filename { 
+    margin-top: 0; 
+    margin-bottom: 20px; /* Большой отступ снизу до настроек */
+    font-size: 15px; 
+    
+    /* Делаем его белым и жирным, чтобы оно "кричало" */
+    color: white; 
+    font-weight: 700; 
+    
+    word-break: break-all; /* Чтобы длинные имена не ломали верстку */
+}
+.modal-body { padding: 15px 20px; overflow-y: auto; flex-grow: 1; }
+.form-row { display: flex; gap: 15px; }
+.form-row .input-group { flex: 1; }
+.modal-footer { padding: 20px; border-top: none; background: var(--modal-bg); }
+.btn-success { background-color: var(--success) !important; }
+.btn-success:hover { background-color: #146c43 !important; }
+#print-status { margin-top: 10px; font-size: 13px; text-align: center; }
+
+/* ==========================================
+   5. АНИМАЦИИ И ОКНО УСПЕХА
+   ========================================== */
+
+/* Ключевые кадры для плавного появления */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Применяем анимации к модальным окнам */
+.modal-overlay:not(.hidden) { animation: fadeIn 0.2s ease-out forwards; }
+.modal:not(.hidden) { animation: scaleIn 0.2s ease-out forwards; }
+
+/* Плавный сдвиг папок и файлов при наведении */
+.item-row { transition: all 0.2s ease; }
+.item-row:hover { transform: translateX(5px); border-color: var(--primary); }
+
+/* Окно успешной печати (Светлое, чтобы выделяться) */
+.success-box {
+    background: var(--surface-color);
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    width: 300px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s ease-out forwards;
+}
+.success-icon { font-size: 50px; margin-bottom: 10px; animation: scaleIn 0.5s ease-out forwards; }
+.success-box h3 { margin: 0 0 10px 0; color: var(--text-main); font-size: 22px; }
+.success-box p { color: var(--text-muted); margin-bottom: 20px; font-size: 14px; }
+/* Ключевые кадры для плавного ИСЧЕЗНОВЕНИЯ */
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes scaleOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0.95); opacity: 0; } }
+@keyframes slideOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-20px); opacity: 0; } }
+
+/* Класс .closing мы будем добавлять через JS перед закрытием */
+.modal-overlay.closing { animation: fadeOut 0.2s ease-in forwards; }
+.modal-overlay.closing .modal { animation: scaleOut 0.2s ease-in forwards; }
+.modal-overlay.closing .success-box { animation: slideOut 0.2s ease-in forwards; }
