@@ -10,7 +10,10 @@ import time
 import mimetypes
 import subprocess
 
-from pydantic import BaseModel
+import asyncio
+from contextlib import asynccontextmanager
+
+from pydantic import BaseModel, Field
 
 from dotenv import load_dotenv
 
@@ -44,16 +47,53 @@ class LoginData(BaseModel):
     password: str
 
 class PrintRequest(BaseModel):
-    repo_id: str
-    file_path: str
-    printer_name: str
-    pages: str = "all"
-    copies: int = 1
-    orientation: str = "portrait"
-    margins: str = "normal" 
-    paper_size: str = "a4"
-    scale: str = "fit"
-    duplex: str = "none"
+    # Ограничиваем длину путей и ID, чтобы не забивать память гигантскими строками
+    repo_id: str = Field(..., max_length=100)
+    file_path: str = Field(..., max_length=1000)
+    
+    # ЗАЩИТА ОТ ИНЪЕКЦИЙ: Принтер в CUPS может содержать только буквы, цифры, тире и подчеркивания.
+    # Любые попытки вставить пробел, точку с запятой, кавычку или символ '&' вызовут ошибку 422.
+    printer_name: str = Field(..., pattern=r'^[a-zA-Z0-9_\-]+$')
+    
+    # ЛИМИТ КОПИЙ: Строго от 1 до 50
+    copies: int = Field(default=1, ge=1, le=50)
+    
+    # ВАЛИДАЦИЯ СТРАНИЦ: Разрешаем только слова "all", "все", "ALL", "ВСЕ" или строку с цифрами, тире и запятыми
+    pages: str = Field(default="all", max_length=100, pattern=r'^(all|все|ALL|ВСЕ|[\d\s\-,]*)$')
+    
+    # БЕЛЫЕ СПИСКИ (Whitelists): Жестко фиксируем разрешенные параметры стилей
+    orientation: str = Field(default="portrait", pattern=r'^(portrait|landscape)$')
+    margins: str = Field(default="normal", pattern=r'^(normal|narrow|wide|none|default)$')
+    paper_size: str = Field(default="a4", pattern=r'^(a4|A4|a3|A3|letter|LETTER)$')
+    
+    # МАСШТАБ: Либо слово "fit", либо число от 10 до 999
+    scale: str = Field(default="fit", max_length=10, pattern=r'^(fit|\d{2,3})$')
+    
+    # ДВУСТОРОННЯЯ ПЕЧАТЬ: Одно из трех значений
+    duplex: str = Field(default="none", pattern=r'^(none|two-sided-long-edge|two-sided-short-edge)$')
+
+
+# ==========================================
+# ФОНОВЫЕ ЗАДАЧИ И LIFESPAN
+# ==========================================
+async def cleanup_background_task():
+    while True:
+        try:
+            now = time.time()
+            for f in os.listdir(DOWNLOADS_DIR):
+                path = os.path.join(DOWNLOADS_DIR, f)
+                if os.stat(path).st_mtime < now - 3600:
+                    try: os.remove(path)
+                    except: pass
+        except Exception:
+            pass
+        await asyncio.sleep(3600)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(cleanup_background_task())
+    yield
+    task.cancel()
 
 
 # ==========================================
@@ -61,6 +101,7 @@ class PrintRequest(BaseModel):
 # ==========================================
 app = FastAPI(title="Единый портал печати Лицея")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 def serve_frontend(): return FileResponse("static/index.html")
@@ -218,13 +259,3 @@ def get_printer_status(printer_name: str):
     except Exception as e:
         logger.error(f"Ошибка проверки статуса принтера: {e}")
         return {"status": "error", "message": "🔴 Ошибка связи с сервером печати"}
-
-@app.on_event("startup")
-@repeat_every(seconds=3600) # Нужно установить pip install fastapi-utils
-def remove_old_temp_files():
-    now = time.time()
-    for f in os.listdir(DOWNLOADS_DIR):
-        path = os.path.join(DOWNLOADS_DIR, f)
-        if os.stat(path).st_mtime < now - 3600:
-            try: os.remove(path)
-            except: pass
