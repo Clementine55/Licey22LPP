@@ -35,6 +35,22 @@ async def get_system_printers():
     _PRINTER_CACHE = {"data": printers, "timestamp": time.time()}
     return printers
 
+async def get_system_printers():
+    # Асинхронный вызов системной команды lpstat
+    proc = await asyncio.create_subprocess_exec(
+        "lpstat", "-v",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, _ = await proc.communicate()
+    printers = []
+    for line in stdout.decode().split('\n'):
+        if line.startswith("device for "):
+            name = line.split(":")[0].replace("device for ", "").strip()
+            uri = line.split(":", 1)[1].strip()
+            if not uri.startswith("usb://"): printers.append(name)
+    return printers
+
 @router.post("/print")
 async def print_document(req: PrintRequest, background_tasks: BackgroundTasks, real_token: str = Depends(get_real_seafile_token)):
     valid_printers = await get_system_printers()
@@ -67,3 +83,47 @@ async def print_document(req: PrintRequest, background_tasks: BackgroundTasks, r
 @router.get("/printers")
 async def get_printers():
     return {"printers": await get_system_printers()}
+
+@router.get("/printer/{printer_name}/status")
+async def get_printer_status(printer_name: str):
+    # Проверка по кэшированному белому списку
+    valid_printers = await get_system_printers()
+    if printer_name not in valid_printers:
+        return {"status": "error", "message": "🔴 Неизвестный принтер"}
+        
+    try:
+        proc_v = await asyncio.create_subprocess_exec(
+            "lpstat", "-v", printer_name,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout_v, _ = await proc_v.communicate()
+        uri = stdout_v.decode().split(":", 1)[1].strip() if stdout_v and "device for" in stdout_v.decode() else ""
+        
+        # Асинхронный сетевой пинг принтера
+        if uri.startswith(("socket://", "lpd://", "ipp://", "http://", "https://")):
+            match = re.search(r'://([^/:]+)', uri)
+            if match:
+                ip = match.group(1)
+                proc_ping = await asyncio.create_subprocess_exec(
+                    "ping", "-c", "1", "-W", "1", ip,
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                await proc_ping.communicate()
+                if proc_ping.returncode != 0: 
+                    return {"status": "error", "message": "🔴 Принтер отключен от сети"}
+
+        proc_p = await asyncio.create_subprocess_exec(
+            "lpstat", "-p", printer_name,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout_p, _ = await proc_p.communicate()
+        output = stdout_p.decode().lower()
+        
+        if any(state in output for state in ["disabled", "not connected", "unplugged"]): 
+            return {"status": "error", "message": "🔴 Выключен или недоступен"}
+        elif "printing" in output: return {"status": "ok", "message": "🟡 Печатает..."}
+        elif "idle" in output: return {"status": "ok", "message": "🟢 Готов к печати"}
+        else: return {"status": "unknown", "message": "⚪ Статус неизвестен"}
+    except Exception as e:
+        logger.error(f"Ошибка проверки статуса принтера: {e}")
+        return {"status": "error", "message": "🔴 Ошибка сервера печати"}
