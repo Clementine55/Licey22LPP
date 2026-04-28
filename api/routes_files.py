@@ -19,19 +19,21 @@ def get_libraries(
     username: str = Header(..., alias="X-Authentik-Username")
 ):
     try:
+        # Формируем правильный системный логин
         seafile_user = f"{username}@licey22.local"
         
-        url = f"{settings.SERVER_URL}/api/v2.1/admin/libraries/?owner={seafile_user}"
+        # ВОЗВРАЩАЕМ ПРАВИЛЬНЫЙ МАРШРУТ: Выдает ВСЕ папки, к которым у пользователя есть доступ
+        url = f"{settings.SERVER_URL}/api/v2.1/admin/users/{seafile_user}/repos/"
         resp = requests.get(url, headers=ADMIN_HEADERS)
         
         if resp.status_code != 200:
-            logger.warning(f"Seafile API вернул ошибку {resp.status_code}. Ответ: {resp.text}")
+            logger.warning(f"Seafile API вернул ошибку {resp.status_code} для пользователя {seafile_user}")
             return {"libraries": []}
 
-        data = resp.json()
-        repos = data.get("data", []) if isinstance(data, dict) else data
+        repos = resp.json()
         
-        libraries = [{"id": r['id'], "name": r['name'], "category": "Личная библиотека"} for r in repos]
+        # Этот эндпоинт возвращает напрямую список словарей
+        libraries = [{"id": r.get('id'), "name": r.get('name'), "category": "Доступные библиотеки"} for r in repos if isinstance(r, dict)]
         return {"libraries": libraries}
     except Exception as e:
         logger.error(f"Ошибка получения библиотек: {e}")
@@ -40,13 +42,15 @@ def get_libraries(
 @router.get("/directory")
 def get_directory(repo_id: str, path: str = "/"):
     try:
-        url = f"{settings.SERVER_URL}/api/v2.1/admin/libraries/{repo_id}/dirents/?parent_dir={path}"
+        # Надежный способ чтения директорий через api2 (работает для расшаренных папок тоже)
+        url = f"{settings.SERVER_URL}/api2/repos/{repo_id}/dir/?p={path}"
         resp = requests.get(url, headers=ADMIN_HEADERS)
         
         if resp.status_code != 200:
             return {"path": path, "content": []}
             
         items = resp.json()
+        
         folders = [{"name": i['name'], "type": "dir"} for i in items if i['type'] == 'dir']
         files = [{"name": i['name'], "type": "file", "size_kb": round(i.get('size', 0)/1024, 1)} for i in items if i['type'] == 'file']
         return {"path": path, "content": folders + files}
