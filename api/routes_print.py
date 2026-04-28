@@ -3,6 +3,7 @@ import httpx
 import asyncio
 import re
 import logging
+import time
 
 from core.config import settings
 from schemas.print_models import PrintRequest
@@ -12,12 +13,16 @@ from .routes_auth import get_real_seafile_token
 logger = logging.getLogger("PrintPortal")
 router = APIRouter(tags=["Печать CUPS"])
 
+_PRINTER_CACHE = {"data": [], "timestamp": 0}
+CACHE_TTL = 30 # Кэшируем на 30 секунд
+
 async def get_system_printers():
-    # Асинхронный вызов системной команды lpstat
+    global _PRINTER_CACHE
+    if time.time() - _PRINTER_CACHE["timestamp"] < CACHE_TTL and _PRINTER_CACHE["data"]:
+        return _PRINTER_CACHE["data"]
+
     proc = await asyncio.create_subprocess_exec(
-        "lpstat", "-v",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        "lpstat", "-v", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
     stdout, _ = await proc.communicate()
     printers = []
@@ -26,6 +31,8 @@ async def get_system_printers():
             name = line.split(":")[0].replace("device for ", "").strip()
             uri = line.split(":", 1)[1].strip()
             if not uri.startswith("usb://"): printers.append(name)
+            
+    _PRINTER_CACHE = {"data": printers, "timestamp": time.time()}
     return printers
 
 @router.post("/print")

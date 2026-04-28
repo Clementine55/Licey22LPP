@@ -13,18 +13,22 @@ from api import routes_auth, routes_files, routes_print
 # Настройка логгера
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(message)s')
 
-# Фоновая задача очистки мусора
+def _clean_dir_sync():
+    now = time.time()
+    if not os.path.exists(settings.DOWNLOADS_DIR): return
+    for f in os.listdir(settings.DOWNLOADS_DIR):
+        path = os.path.join(settings.DOWNLOADS_DIR, f)
+        if os.stat(path).st_mtime < now - 3600:
+            try: os.remove(path)
+            except: pass
+
 async def cleanup_background_task():
     while True:
         try:
-            now = time.time()
-            for f in os.listdir(settings.DOWNLOADS_DIR):
-                path = os.path.join(settings.DOWNLOADS_DIR, f)
-                if os.stat(path).st_mtime < now - 3600:
-                    try: os.remove(path)
-                    except: pass
-        except Exception:
-            pass
+            # Выполняем синхронную чистку в параллельном потоке, не блокируя FastAPI
+            await asyncio.to_thread(_clean_dir_sync)
+        except Exception as e:
+            logging.error(f"Ошибка очистки мусора: {e}")
         await asyncio.sleep(3600)
 
 @asynccontextmanager

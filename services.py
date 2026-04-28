@@ -5,6 +5,7 @@ import jwt
 import pypdf
 import logging
 import asyncio
+import aiofiles
 
 from dotenv import load_dotenv
 
@@ -60,7 +61,8 @@ class OnlyOfficeService:
             if ext in ['pdf', 'jpg', 'jpeg', 'png', 'webp']:
                 save_path = os.path.join(output_dir, f"{uuid.uuid4().hex}.{ext}")
                 resp = await client.get(download_url)
-                with open(save_path, 'wb') as f: f.write(resp.content)
+                async with aiofiles.open(save_path, 'wb') as f: 
+                    await f.write(resp.content)
                 return save_path
 
             payload = {
@@ -120,11 +122,13 @@ class OnlyOfficeService:
 
             pdf_resp = await client.get(data.get("fileUrl"))
             save_path = os.path.join(output_dir, f"{uuid.uuid4().hex}.pdf")
-            with open(save_path, 'wb') as f: f.write(pdf_resp.content)
+            async with aiofiles.open(save_path, 'wb') as f: 
+                await f.write(pdf_resp.content)
             return save_path
 
 async def cleanup_temp_files(*file_paths):
     for path in file_paths:
         try: 
-            if os.path.exists(path): os.remove(path)
+            if os.path.exists(path): 
+                await asyncio.to_thread(os.remove, path)
         except Exception: pass
