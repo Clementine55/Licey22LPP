@@ -11,13 +11,38 @@ from services import OnlyOfficeService
 logger = logging.getLogger("PrintPortal")
 router = APIRouter(tags=["Печать CUPS"])
 
+def get_system_printers():
+    """Внутренняя функция: извлекает реальный список принтеров из ОС."""
+    try:
+        result = subprocess.run(["lpstat", "-v"], capture_output=True, text=True, check=True)
+        printers = []
+        for line in result.stdout.split('\n'):
+            if line.startswith("device for "):
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    name_part = parts[0].replace("device for ", "").strip()
+                    uri_part = parts[1].strip()
+                    if not uri_part.startswith("usb://"):
+                        printers.append(name_part)
+        return printers
+    except Exception as e:
+        logger.error(f"Ошибка получения списка принтеров: {e}")
+        return []
+
 @router.post("/print")
 def print_document(req: PrintRequest, background_tasks: BackgroundTasks):
+    # 1. ЖЕСТКАЯ ВАЛИДАЦИЯ ПРИНТЕРА (Защита от подмены)
+    valid_printers = get_system_printers()
+    if req.printer_name not in valid_printers:
+        logger.error(f"SECURITY: Отклонена попытка печати на неизвестный принтер '{req.printer_name}'")
+        raise HTTPException(status_code=400, detail="Выбран недопустимый принтер")
+
     try:
         ADMIN_HEADERS = {"Authorization": f"Token {settings.SEAFILE_ADMIN_TOKEN}"}
         download_url = requests.get(f"{settings.SERVER_URL}/api2/repos/{req.repo_id}/file/?p={req.file_path}", headers=ADMIN_HEADERS).text.strip('"')
         pdf_path = OnlyOfficeService.convert(download_url, req.file_path, req.orientation, req.margins, req.scale, req.paper_size, settings.DOWNLOADS_DIR)
 
+        # 2. Формирование команды (Массив строк исключает shell-инъекции)
         cmd = ["lp", "-d", req.printer_name, "-n", str(req.copies), "-o", f"media={req.paper_size.upper()}"]
         
         if req.pages and req.pages.lower() not in ["all", "все", ""]:
@@ -38,24 +63,14 @@ def print_document(req: PrintRequest, background_tasks: BackgroundTasks):
 
 @router.get("/printers")
 def get_printers():
-    try:
-        result = subprocess.run(["lpstat", "-v"], capture_output=True, text=True, check=True)
-        printers = []
-        for line in result.stdout.split('\n'):
-            if line.startswith("device for "):
-                parts = line.split(":", 1)
-                if len(parts) == 2:
-                    name_part = parts[0].replace("device for ", "").strip()
-                    uri_part = parts[1].strip()
-                    if not uri_part.startswith("usb://"):
-                        printers.append(name_part)
-        return {"printers": printers}
-    except Exception as e:
-        logger.error(f"Ошибка получения списка принтеров: {e}")
-        return {"printers": []}
+    return {"printers": get_system_printers()}
 
 @router.get("/printer/{printer_name}/status")
 def get_printer_status(printer_name: str):
+    # Проверка существования до выполнения любых системных команд
+    if printer_name not in get_system_printers():
+        return {"status": "error", "message": "🔴 Неизвестный принтер"}
+        
     try:
         res_v = subprocess.run(["lpstat", "-v", printer_name], capture_output=True, text=True)
         uri = res_v.stdout.split(":", 1)[1].strip() if res_v.stdout and "device for" in res_v.stdout else ""
