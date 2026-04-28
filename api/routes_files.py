@@ -16,31 +16,6 @@ ADMIN_HEADERS = {"Authorization": f"Token {settings.SEAFILE_ADMIN_TOKEN}"}
 
 @router.get("/libraries")
 def get_libraries(
-    username: str = Header(..., alias="X-Authentik-Username"),
-    email: str = Header("", alias="X-Authentik-Email")
-):
-    try:
-        seafile_user = email if email else f"{username}@licey22.local"
-        
-        url = f"{settings.SERVER_URL}/api/v2.1/admin/libraries/?owner={seafile_user}"
-        resp = requests.get(url, headers=ADMIN_HEADERS)
-        
-        if resp.status_code != 200:
-            logger.warning(f"Seafile API вернул ошибку {resp.status_code}. Ответ: {resp.text}")
-            return {"libraries": []}
-
-        data = resp.json()
-        # Seafile v2.1 возвращает словарь {"data": [...]}, распаковываем его
-        repos = data.get("data", []) if isinstance(data, dict) else data
-        
-        libraries = [{"id": r['id'], "name": r['name'], "category": "Личная библиотека"} for r in repos]
-        return {"libraries": libraries}
-    except Exception as e:
-        logger.error(f"Ошибка получения библиотек: {e}")
-        return {"libraries": []}
-        
-@router.get("/libraries")
-def get_libraries(
     username: str = Header(..., alias="X-Authentik-Username")
 ):
     try:
@@ -78,3 +53,19 @@ def get_directory(repo_id: str, path: str = "/"):
     except Exception as e:
         logger.error(f"Ошибка чтения директории: {e}")
         return {"path": path, "content": []}
+
+@router.get("/preview")
+def get_preview(repo_id: str, file_path: str, background_tasks: BackgroundTasks, paper_size: str = "a4", orientation: str="portrait", margins: str="default", scale: str="fit", pages: str="all"):
+    try:
+        download_url = requests.get(f"{settings.SERVER_URL}/api2/repos/{repo_id}/file/?p={file_path}", headers=ADMIN_HEADERS).text.strip('"')
+        
+        pdf_path = OnlyOfficeService.convert(download_url, file_path, orientation, margins, scale, paper_size, settings.DOWNLOADS_DIR)
+        cropped_path = os.path.join(settings.DOWNLOADS_DIR, f"crop_{uuid.uuid4().hex}.pdf")
+        final_pdf = PDFService.extract_pages(pdf_path, pages, cropped_path)
+        
+        background_tasks.add_task(cleanup_temp_files, pdf_path, cropped_path)
+        mime_type, _ = mimetypes.guess_type(final_pdf)
+        return FileResponse(final_pdf, media_type=mime_type or "application/octet-stream")
+    except Exception as e:
+        logger.error(str(e))
+        raise HTTPException(status_code=500, detail="Ошибка предпросмотра")
