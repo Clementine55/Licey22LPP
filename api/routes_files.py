@@ -1,0 +1,56 @@
+from fastapi import APIRouter, HTTPException, Header, BackgroundTasks
+from fastapi.responses import FileResponse
+import requests
+import os
+import uuid
+import mimetypes
+import logging
+
+from core.config import settings
+from services import OnlyOfficeService, PDFService, cleanup_temp_files
+
+logger = logging.getLogger("PrintPortal")
+router = APIRouter(tags=["Файлы и Предпросмотр"])
+
+@router.get("/libraries")
+def get_libraries(x_token: str = Header(...)):
+    try:
+        resp = requests.get(f"{settings.SERVER_URL}/api2/repos/", headers={"Authorization": f"Token {x_token}"})
+        repos = resp.json()
+        libraries = []
+        for r in repos:
+            repo_type = r.get('type', 'repo')
+            if repo_type == 'repo': category = "Мои библиотеки"
+            elif repo_type == 'srepo': category = "Доступные мне"
+            elif repo_type == 'grepo': category = r.get('group_name', 'Общее со всеми')
+            else: category = "Прочее"
+            libraries.append({"id": r['id'], "name": r['name'], "category": category})
+        return {"libraries": libraries}
+    except Exception as e:
+        logger.error(f"Ошибка получения библиотек: {e}")
+        return {"libraries": []}
+        
+@router.get("/directory")
+def get_directory(repo_id: str, path: str = "/", x_token: str = Header(...)):
+    resp = requests.get(f"{settings.SERVER_URL}/api2/repos/{repo_id}/dir/?p={path}", headers={"Authorization": f"Token {x_token}"})
+    items = resp.json()
+    folders = [{"name": i['name'], "type": "dir"} for i in items if i['type'] == 'dir']
+    files = [{"name": i['name'], "type": "file", "size_kb": round(i.get('size', 0)/1024, 1)} for i in items if i['type'] == 'file']
+    return {"path": path, "content": folders + files}
+
+@router.get("/preview")
+def get_preview(repo_id: str, file_path: str, background_tasks: BackgroundTasks, paper_size: str = "a4", orientation: str="portrait", margins: str="default", scale: str="fit", pages: str="all", x_token: str=Header(...)):
+    try:
+        headers = {"Authorization": f"Token {x_token}"}
+        download_url = requests.get(f"{settings.SERVER_URL}/api2/repos/{repo_id}/file/?p={file_path}", headers=headers).text.strip('"')
+        
+        pdf_path = OnlyOfficeService.convert(download_url, file_path, orientation, margins, scale, paper_size, settings.DOWNLOADS_DIR)
+        cropped_path = os.path.join(settings.DOWNLOADS_DIR, f"crop_{uuid.uuid4().hex}.pdf")
+        final_pdf = PDFService.extract_pages(pdf_path, pages, cropped_path)
+        
+        background_tasks.add_task(cleanup_temp_files, pdf_path, cropped_path)
+        mime_type, _ = mimetypes.guess_type(final_pdf)
+        return FileResponse(final_pdf, media_type=mime_type or "application/octet-stream")
+    except Exception as e:
+        logger.error(str(e))
+        raise HTTPException(status_code=500, detail="Ошибка предпросмотра")
