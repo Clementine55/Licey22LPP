@@ -1,9 +1,5 @@
 // --- 2. UTILS (Вспомогательные функции) ---
 const Utils = {
-    getToken: () => localStorage.getItem('seafile_token'),
-    setToken: (t) => localStorage.setItem('seafile_token', t),
-    clearToken: () => localStorage.removeItem('seafile_token'),
-    
     getFileConfig: (name) => {
         const ext = name.split('.').pop().toLowerCase();
         const types = {

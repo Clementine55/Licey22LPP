@@ -1,21 +1,14 @@
-// SSO Bypass: Принудительно ставим фейковый токен при загрузке страницы
-if (!localStorage.getItem('seafile_token')) {
-    localStorage.setItem('seafile_token', 'sso-bypassed');
-    // Если нужно, принудительно переключите видимость блоков здесь
-}
-
 // --- 3. API (Взаимодействие с сервером) ---
 const API = {
     base: '/api',
     
     request: async (endpoint, options = {}) => {
         const headers = { 'Content-Type': 'application/json' };
-        if (Utils.getToken()) headers['x-token'] = Utils.getToken();
         
         const response = await fetch(`${API.base}${endpoint}`, { ...options, headers: {...headers, ...options.headers} });
+        // Если бэкенд (или Nginx) ответил 401, выкидываем в Authentik
         if (response.status === 401) { UI.handleLogout(); throw new Error("Unauthorized"); }
         
-        // Если ожидаем бинарник (PDF)
         if (options.expectBlob) {
             if (!response.ok) throw new Error("Failed to fetch blob");
             return await response.blob();
@@ -26,7 +19,6 @@ const API = {
         return data;
     },
 
-    login: (username, password) => API.request('/login', { method: 'POST', body: JSON.stringify({username, password}) }),
     getUser: () => API.request('/user'),
     getLibraries: () => API.request('/libraries'),
     getDirectory: (repoId, path) => API.request(`/directory?repo_id=${repoId}&path=${encodeURIComponent(path)}`),

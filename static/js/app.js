@@ -1,43 +1,24 @@
 // --- 4. UI (Управление интерфейсом) ---
 const UI = {
     init: () => {
-        // 1. Сначала вешаем обработчики на кнопки (один раз на всю жизнь приложения)
         const printBtn = document.getElementById('btn-submit-print');
         if (printBtn) {
-            // Используем .onclick вместо .addEventListener — это гарантирует, 
-            // что обработчик всегда будет только один.
             printBtn.onclick = API.submitPrintJob;
         }
 
-        // 2. Дальше твоя стандартная логика авторизации
-        if (Utils.getToken()) { 
-            UI.showScreen('app-screen'); 
-            UI.loadData(); 
-        } else { 
-            UI.showScreen('login-screen'); 
-        }
+        UI.showScreen('app-screen'); 
+        UI.loadData(); 
     },
 
     showScreen: (id) => {
-        document.getElementById('login-screen').classList.remove('flex'); document.getElementById('login-screen').classList.add('hidden');
-        document.getElementById('app-screen').classList.remove('flex'); document.getElementById('app-screen').classList.add('hidden');
-        document.getElementById(id).classList.remove('hidden'); document.getElementById(id).classList.add('flex');
-    },
-
-    handleLogin: async () => {
-        const err = document.getElementById('login-error'); err.classList.add('hidden');
-        try {
-            const data = await API.login(document.getElementById('email').value, document.getElementById('password').value);
-            Utils.setToken(data.token);
-            UI.init();
-        } catch (e) { err.innerText = e.message; err.classList.remove('hidden'); }
+        const appScreen = document.getElementById('app-screen');
+        if (appScreen) {
+            appScreen.classList.remove('hidden'); 
+            appScreen.classList.add('flex');
+        }
     },
 
     handleLogout: () => { 
-        // 1. Очищаем локальные данные браузера
-        Utils.clearToken(); 
-        
-        // 2. Убиваем сессию на сервере Authentik
         window.location.href = '/outpost.goauthentik.io/sign_out';
     },
 
@@ -290,5 +271,5 @@ const UI = {
     },
 };
 
-// Запуск приложения
-UI.init();
+// Запускаем приложение только после полной отрисовки HTML
+document.addEventListener('DOMContentLoaded', UI.init);
