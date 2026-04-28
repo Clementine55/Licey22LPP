@@ -22,14 +22,18 @@ def get_libraries(
     try:
         seafile_user = email if email else f"{username}@licey22.local"
         
-        url = f"{settings.SERVER_URL}/api/v2.1/admin/users/{seafile_user}/repos/"
+        # ПРАВИЛЬНЫЙ АДМИНСКИЙ ЭНДПОИНТ: поиск библиотек по владельцу
+        url = f"{settings.SERVER_URL}/api/v2.1/admin/libraries/?owner={seafile_user}"
         resp = requests.get(url, headers=ADMIN_HEADERS)
         
         if resp.status_code != 200:
-            logger.warning(f"Seafile не нашел юзера {seafile_user}. Код: {resp.status_code}")
+            logger.warning(f"Seafile API вернул ошибку {resp.status_code}. Ответ: {resp.text}")
             return {"libraries": []}
 
-        repos = resp.json()
+        data = resp.json()
+        # Seafile v2.1 возвращает словарь {"data": [...]}, распаковываем его
+        repos = data.get("data", []) if isinstance(data, dict) else data
+        
         libraries = [{"id": r['id'], "name": r['name'], "category": "Личная библиотека"} for r in repos]
         return {"libraries": libraries}
     except Exception as e:

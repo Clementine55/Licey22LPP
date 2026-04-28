@@ -1,3 +1,9 @@
+// SSO Bypass: Принудительно ставим фейковый токен при загрузке страницы
+if (!localStorage.getItem('seafile_token')) {
+    localStorage.setItem('seafile_token', 'sso-bypassed');
+    // Если нужно, принудительно переключите видимость блоков здесь
+}
+
 // --- 3. API (Взаимодействие с сервером) ---
 const API = {
     base: '/api',

@@ -33,7 +33,13 @@ const UI = {
         } catch (e) { err.innerText = e.message; err.classList.remove('hidden'); }
     },
 
-    handleLogout: () => { Utils.clearToken(); UI.init(); },
+    handleLogout: () => { 
+        // 1. Очищаем локальные данные браузера
+        Utils.clearToken(); 
+        
+        // 2. Убиваем сессию на сервере Authentik
+        window.location.href = '/outpost.goauthentik.io/sign_out';
+    },
 
     loadData: async () => {
         try {
