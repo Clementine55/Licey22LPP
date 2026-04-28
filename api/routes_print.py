@@ -12,9 +12,10 @@ logger = logging.getLogger("PrintPortal")
 router = APIRouter(tags=["Печать CUPS"])
 
 @router.post("/print")
-def print_document(req: PrintRequest, background_tasks: BackgroundTasks, x_token: str = Header(...)):
+def print_document(req: PrintRequest, background_tasks: BackgroundTasks):
     try:
-        download_url = requests.get(f"{settings.SERVER_URL}/api2/repos/{req.repo_id}/file/?p={req.file_path}", headers={"Authorization": f"Token {x_token}"}).text.strip('"')
+        ADMIN_HEADERS = {"Authorization": f"Token {settings.SEAFILE_ADMIN_TOKEN}"}
+        download_url = requests.get(f"{settings.SERVER_URL}/api2/repos/{req.repo_id}/file/?p={req.file_path}", headers=ADMIN_HEADERS).text.strip('"')
         pdf_path = OnlyOfficeService.convert(download_url, req.file_path, req.orientation, req.margins, req.scale, req.paper_size, settings.DOWNLOADS_DIR)
 
         cmd = ["lp", "-d", req.printer_name, "-n", str(req.copies), "-o", f"media={req.paper_size.upper()}"]
@@ -27,7 +28,7 @@ def print_document(req: PrintRequest, background_tasks: BackgroundTasks, x_token
         cmd.append(pdf_path)
 
         subprocess.run(cmd, check=True)
-        return {"status": "ok", "message": "Документ успешно отправлен в очередь печати"}
+        return {"status": "ok", "message": "Документ успешно отправлен"}
     except subprocess.CalledProcessError as e:
         logger.error(f"Ошибка системы печати CUPS: {e}")
         raise HTTPException(status_code=500, detail="Ошибка отправки на принтер")
