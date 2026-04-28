@@ -22,13 +22,6 @@ button.primary:hover { background-color: var(--primary-hover); }
 button:disabled { background-color: var(--text-muted) !important; cursor: not-allowed; }
 
 /* ==========================================
-    2. ЭКРАН ЛОГИНА
-    ========================================== */
-#login-screen { justify-content: center; align-items: center; width: 100%; }
-.login-box { background: var(--surface-color); padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); width: 100%; max-width: 350px; text-align: center; }
-.login-box h2 { margin-top: 0; }
-
-/* ==========================================
     3. ГЛАВНЫЙ ИНТЕРФЕЙС
     ========================================== */
 #app-screen { width: 100%; }
