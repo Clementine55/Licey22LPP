@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Header, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Header, BackgroundTasks, Depends
 from fastapi.responses import FileResponse
 import requests
 import os
@@ -14,54 +14,53 @@ router = APIRouter(tags=["Файлы и Предпросмотр"])
 
 ADMIN_HEADERS = {"Authorization": f"Token {settings.SEAFILE_ADMIN_TOKEN}"}
 
-@router.get("/libraries")
-def get_libraries(
-    username: str = Header(..., alias="X-Authentik-Username")
-):
-    try:
-        # Формируем правильный системный логин
-        seafile_user = f"{username}@licey22.local"
-        
-        # ВОЗВРАЩАЕМ ПРАВИЛЬНЫЙ МАРШРУТ: Выдает ВСЕ папки, к которым у пользователя есть доступ
-        url = f"{settings.SERVER_URL}/api/v2.1/admin/users/{seafile_user}/repos/"
-        resp = requests.get(url, headers=ADMIN_HEADERS)
-        
-        if resp.status_code != 200:
-            logger.warning(f"Seafile API вернул ошибку {resp.status_code} для пользователя {seafile_user}")
-            return {"libraries": []}
+def get_real_seafile_token(username: str = Header(..., alias="X-Authentik-Username")):
+    seafile_user = f"{username}@licey22.local"
+    resp = requests.post(
+        f"{settings.SERVER_URL}/api/v2.1/admin/generate-user-auth-token/",
+        data={"email": seafile_user},
+        headers=ADMIN_HEADERS
+    )
+    if resp.status_code == 200:
+        return resp.json().get("token")
+    
+    logger.error(f"Seafile не смог сгенерировать токен для {seafile_user}. Код: {resp.status_code}")
+    raise HTTPException(status_code=401, detail="Пользователь не найден в Seafile")
 
+@router.get("/libraries")
+def get_libraries(real_token: str = Depends(get_real_seafile_token)):
+    try:
+        # ВАШ СТАРЫЙ РАБОЧИЙ КОД: Запрос папок от имени самого пользователя
+        resp = requests.get(f"{settings.SERVER_URL}/api2/repos/", headers={"Authorization": f"Token {real_token}"})
         repos = resp.json()
-        
-        # Этот эндпоинт возвращает напрямую список словарей
-        libraries = [{"id": r.get('id'), "name": r.get('name'), "category": "Доступные библиотеки"} for r in repos if isinstance(r, dict)]
+        libraries = []
+        for r in repos:
+            repo_type = r.get('type', 'repo')
+            if repo_type == 'repo': category = "Мои библиотеки"
+            elif repo_type == 'srepo': category = "Доступные мне"
+            elif repo_type == 'grepo': category = r.get('group_name', 'Общее со всеми')
+            else: category = "Прочее"
+            libraries.append({"id": r['id'], "name": r['name'], "category": category})
         return {"libraries": libraries}
     except Exception as e:
         logger.error(f"Ошибка получения библиотек: {e}")
         return {"libraries": []}
         
 @router.get("/directory")
-def get_directory(repo_id: str, path: str = "/"):
-    try:
-        # Надежный способ чтения директорий через api2 (работает для расшаренных папок тоже)
-        url = f"{settings.SERVER_URL}/api2/repos/{repo_id}/dir/?p={path}"
-        resp = requests.get(url, headers=ADMIN_HEADERS)
-        
-        if resp.status_code != 200:
-            return {"path": path, "content": []}
-            
-        items = resp.json()
-        
-        folders = [{"name": i['name'], "type": "dir"} for i in items if i['type'] == 'dir']
-        files = [{"name": i['name'], "type": "file", "size_kb": round(i.get('size', 0)/1024, 1)} for i in items if i['type'] == 'file']
-        return {"path": path, "content": folders + files}
-    except Exception as e:
-        logger.error(f"Ошибка чтения директории: {e}")
+def get_directory(repo_id: str, path: str = "/", real_token: str = Depends(get_real_seafile_token)):
+    resp = requests.get(f"{settings.SERVER_URL}/api2/repos/{repo_id}/dir/?p={path}", headers={"Authorization": f"Token {real_token}"})
+    if resp.status_code != 200:
         return {"path": path, "content": []}
+    items = resp.json()
+    folders = [{"name": i['name'], "type": "dir"} for i in items if i['type'] == 'dir']
+    files = [{"name": i['name'], "type": "file", "size_kb": round(i.get('size', 0)/1024, 1)} for i in items if i['type'] == 'file']
+    return {"path": path, "content": folders + files}
 
 @router.get("/preview")
-def get_preview(repo_id: str, file_path: str, background_tasks: BackgroundTasks, paper_size: str = "a4", orientation: str="portrait", margins: str="default", scale: str="fit", pages: str="all"):
+def get_preview(repo_id: str, file_path: str, background_tasks: BackgroundTasks, paper_size: str = "a4", orientation: str="portrait", margins: str="default", scale: str="fit", pages: str="all", real_token: str = Depends(get_real_seafile_token)):
     try:
-        download_url = requests.get(f"{settings.SERVER_URL}/api2/repos/{repo_id}/file/?p={file_path}", headers=ADMIN_HEADERS).text.strip('"')
+        headers = {"Authorization": f"Token {real_token}"}
+        download_url = requests.get(f"{settings.SERVER_URL}/api2/repos/{repo_id}/file/?p={file_path}", headers=headers).text.strip('"')
         
         pdf_path = OnlyOfficeService.convert(download_url, file_path, orientation, margins, scale, paper_size, settings.DOWNLOADS_DIR)
         cropped_path = os.path.join(settings.DOWNLOADS_DIR, f"crop_{uuid.uuid4().hex}.pdf")
